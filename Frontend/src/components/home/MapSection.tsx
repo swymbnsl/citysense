@@ -498,7 +498,6 @@ const MapSection: React.FC = (): ReactNode => {
     try {
       if (USE_DEMO_DATA) {
         setHeatmapData(DEMO_DATA)
-        console.log("Demo data set.")
         return
       }
       const { data, error } = await supabase
@@ -507,7 +506,6 @@ const MapSection: React.FC = (): ReactNode => {
         .order("created_at", { ascending: false })
       if (error) throw error
       if (data) setHeatmapData(data as HeatmapDataType[])
-      console.log("Real data fetched.")
     } catch (error) {
       console.error("Error fetching heatmap data:", error)
       toast.error("Failed to load map data")
@@ -526,7 +524,6 @@ const MapSection: React.FC = (): ReactNode => {
         }
       )
       .subscribe((status) => {
-        console.log("Subscription status:", status)
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
           toast.error("Real-time connection issue.")
           subscriptionRef.current = null
@@ -636,7 +633,6 @@ const MapSection: React.FC = (): ReactNode => {
           ],
         },
       })
-      console.log("AQI Heatmap Added")
     } catch (error) {
       console.error("Error adding air quality layers:", error)
     }
@@ -682,7 +678,6 @@ const MapSection: React.FC = (): ReactNode => {
       }
       // --- End Cleanup ---
 
-      console.log(`Generating ${dataField} route visualization...`)
       setIsLoadingRoutes(true) // Start loading indicator
 
       const SIGNIFICANCE_THRESHOLD = 30 // Min intensity to consider
@@ -695,7 +690,6 @@ const MapSection: React.FC = (): ReactNode => {
       )
 
       if (significantPoints.length < 2) {
-        console.log(`Not enough significant points for ${dataField} routes.`)
         setIsLoadingRoutes(false)
         return
       }
@@ -769,9 +763,6 @@ const MapSection: React.FC = (): ReactNode => {
         if (processedPairs.size >= MAX_ROUTES_TO_DRAW) break
       }
 
-      console.log(
-        `Requesting ${routePromises.length} routes for ${dataField}...`
-      )
       const routeResults = await Promise.allSettled(routePromises)
 
       // Filter out failed requests and null results
@@ -780,7 +771,6 @@ const MapSection: React.FC = (): ReactNode => {
         .map((result) => (result as PromiseFulfilledResult<any>).value) // Type assertion
 
       if (validRoutes.length === 0) {
-        console.log(`No valid routes found for ${dataField}.`)
         setIsLoadingRoutes(false)
         return
       }
@@ -894,9 +884,6 @@ const MapSection: React.FC = (): ReactNode => {
             "line-opacity": 1, // Set base opacity to 1 (controlled by color alpha)
           },
         })
-        console.log(
-          `Successfully added ${validRoutes.length} ${dataField} route segments.`
-        )
       } catch (error) {
         console.error(`Error adding ${dataField} route layer:`, error)
       } finally {
@@ -917,7 +904,6 @@ const MapSection: React.FC = (): ReactNode => {
         map.current.once("style.load", () => updateMapLayers(activeId))
         return
       }
-      console.log(`Updating map layers. Requested: ${activeId}`)
       const managedLayerIds = [
         "air-quality-heatmap",
         "pothole_density-route-line",
@@ -950,10 +936,8 @@ const MapSection: React.FC = (): ReactNode => {
         return
       }
       if (heatmapData.length === 0 && !USE_DEMO_DATA) {
-        console.log("Waiting for heatmap data before adding layer...")
         return
       } // Don't proceed if data isn't ready (unless demo)
-      console.log("Adding layer:", activeId)
       try {
         if (activeId === "air-pollution") addAQIHeatmap()
         else if (activeId === "potholes")
@@ -1004,7 +988,6 @@ const MapSection: React.FC = (): ReactNode => {
         "bottom-right"
       )
       map.current.on("load", () => {
-        console.log("Map loaded event fired.")
         setMapLoaded(true)
       })
       map.current.on("error", (e) => {
@@ -1039,7 +1022,6 @@ const MapSection: React.FC = (): ReactNode => {
   // --- Effect for Applying Initial Layer AFTER Map and Data are Ready ---
   useEffect(() => {
     if (mapLoaded && heatmapData.length > 0 && !initialLayerApplied) {
-      console.log("Map loaded and data available, applying initial layer.")
       const activeLayer = dataLayers.find((l) => l.active)
       if (activeLayer) {
         updateMapLayers(activeLayer.id)
@@ -1675,29 +1657,36 @@ const MapSection: React.FC = (): ReactNode => {
             </div>
           )}
           <div className="flex flex-wrap gap-2 mb-4">
-            {" "}
             {dataLayers.map((layer) => (
               <Button
                 key={layer.id}
-                variant={layer.active ? "default" : "outline"}
+                variant={layer.active ? "default" : "outline"} // Keep variant logic
                 size="sm"
-                className={`${
-                  layer.active
-                    ? `${layer.bgColor} ${layer.hoverColor} text-white shadow-sm`
-                    : `${layer.borderColor} ${layer.textColor} hover:bg-gray-100`
-                } flex items-center gap-1.5 px-2 py-1 text-xs sm:text-sm rounded-md transition-all`}
+                className={`
+                  flex items-center gap-1.5 px-2 py-1 text-xs sm:text-sm rounded-md transition-all
+                  ${
+                    layer.active
+                      ? `${layer.bgColor} ${layer.hoverColor} text-white shadow-md font-semibold border border-transparent` // Active: Use specified bg/hover, white text, shadow
+                      : `${layer.borderColor} ${layer.textColor} hover:bg-gray-100 hover:border-gray-300` // Inactive: Use border/text color, light hover
+                  }
+                  ${
+                    navigationActive || (layer.active && !navigationActive)
+                      ? "opacity-50 cursor-not-allowed"
+                      : ""
+                  } // Disabled state
+                `}
                 onClick={() => toggleLayer(layer.id)}
                 disabled={
                   navigationActive || (layer.active && !navigationActive)
                 }
               >
-                {" "}
                 {React.cloneElement(layer.icon as React.ReactElement, {
                   className: "h-4 w-4",
-                })}{" "}
-                <span>{layer.name}</span>{" "}
+                })}
+                <span>{layer.name}</span>
               </Button>
-            ))}{" "}
+            ))}
+            {/* Navigation Button - Styling remains the same */}
             <Button
               variant={showNavigation ? "secondary" : "outline"}
               size="sm"
@@ -1709,10 +1698,9 @@ const MapSection: React.FC = (): ReactNode => {
               onClick={toggleNavigation}
               disabled={navigationActive}
             >
-              {" "}
-              <Navigation className="h-4 w-4" />{" "}
-              <span>{showNavigation ? "Close Nav" : "Directions"}</span>{" "}
-            </Button>{" "}
+              <Navigation className="h-4 w-4" />
+              <span>{showNavigation ? "Close Nav" : "Directions"}</span>
+            </Button>
           </div>
           {showNavigation && (
             <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 mb-4 relative transition-all duration-300 ease-in-out">
@@ -2086,44 +2074,50 @@ const MapSection: React.FC = (): ReactNode => {
             {" "}
             <div ref={mapContainer} className="h-full w-full" />{" "}
           </div>
+          {/* Legend Update */}
           <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-xs sm:text-sm text-gray-600">
-            {" "}
-            <span className="font-semibold mr-2">Legend:</span>{" "}
+            <span className="font-semibold mr-2">Legend:</span>
             <div
               className="flex items-center"
               title="Air Quality (Good to Hazardous)"
             >
               <span className="h-2.5 w-2.5 rounded-full bg-gradient-to-r from-green-400 via-yellow-400 to-red-500 mr-1.5"></span>
-              Air Quality
-            </div>{" "}
+              Air Quality Heatmap
+            </div>
             <div
               className="flex items-center"
-              title="Pothole Hazard Severity (Low to High)"
+              title="Pothole Hazard Intensity (Low to High)"
             >
-              <span className="h-1 w-4 bg-gradient-to-r from-yellow-400 via-orange-500 to-red-600 mr-1.5 opacity-80"></span>
-              Pothole Segments
-            </div>{" "}
+              <span className="h-1 w-4 bg-gradient-to-r from-green-300 via-yellow-400 to-red-600 mr-1.5 opacity-80"></span>
+              Pothole Route Intensity
+            </div>
             <div
               className="flex items-center"
-              title="Garbage Hazard Severity (Low to High)"
+              title="Garbage Hazard Intensity (Low to High)"
             >
               <span className="h-1 w-4 bg-gradient-to-r from-green-300 via-yellow-400 to-orange-500 mr-1.5 opacity-80"></span>
-              Garbage Segments
-            </div>{" "}
+              Garbage Route Intensity
+            </div>
             <div
               className="flex items-center"
-              title="Flooding Hazard Severity (Low to High)"
+              title="Flooding Hazard Intensity (Low to High)"
             >
               <span className="h-1 w-4 bg-gradient-to-r from-blue-200 via-blue-400 to-blue-700 mr-1.5 opacity-80"></span>
-              Flooding Segments
-            </div>{" "}
-            <div className="flex items-center">
+              Flooding Route Intensity
+            </div>
+            <div
+              className="flex items-center"
+              title="Calculated Navigation Route"
+            >
               <span className="h-1 w-4 bg-indigo-600 mr-1.5"></span>Nav Route
-            </div>{" "}
-            <div className="flex items-center">
+            </div>
+            <div
+              className="flex items-center"
+              title="Recommended Navigation Route"
+            >
               <span className="h-1 w-4 bg-green-500 mr-1.5"></span>Recommended
               Nav
-            </div>{" "}
+            </div>
           </div>
         </div>
       </div>
