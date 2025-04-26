@@ -31,7 +31,7 @@ function setupRealtimeSubscription() {
           table: "raw_table",
         },
         (payload) => {
-          console.log("🔔 Realtime event received:", payload.eventType)
+          console.log("Realtime event received:", payload.eventType)
           if (payload.new && payload.new.id) {
             console.log(`New entry detected with ID: ${payload.new.id}`)
             handleNewEntry(payload)
@@ -193,7 +193,8 @@ async function processEntry(entry) {
 }
 
 async function generateHeatmapData(entry, coordinates) {
-  const airQuality = generateRandomValue(45, 50)
+  // Use mq135_data from the entry for air quality, provide a default if missing
+  const airQuality = entry.mq135_data ?? 0
 
   let potholeDensity = 0
   let potholeData = null
@@ -225,8 +226,8 @@ async function generateHeatmapData(entry, coordinates) {
     potholeDensity = 0
   }
 
-  const hygieneLevel = 0
-  const waterLoggingLevel = 0
+  const hygieneLevel = await detectHygieneLevel(entry)
+  const waterLoggingLevel = await detectWaterLoggingLevel(entry)
 
   return {
     airQuality,
@@ -272,6 +273,125 @@ async function detectPotholes(imageUrl) {
   } catch (error) {
     console.error("Error detecting potholes:", error)
     return null
+  }
+}
+
+async function detectHygieneLevel(entry) {
+  if (!entry.image_url) {
+    console.log(
+      `Skipping hygiene detection for entry ${entry.id}: No image URL`
+    )
+    return 0
+  }
+  try {
+    console.log(
+      `Detecting hygiene level for entry ${entry.id} using image: ${entry.image_url}`
+    )
+    const response = await fetch(
+      "https://serverless.roboflow.com/infer/workflows/swayam-iftnk/custom-workflow-2",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          api_key: ROBOFLOW_API_KEY,
+          inputs: {
+            image: { type: "url", value: entry.image_url },
+          },
+        }),
+      }
+    )
+
+    if (!response.ok) {
+      console.error(
+        `Hygiene detection API error for entry ${entry.id}: ${response.statusText}`
+      )
+      return 0
+    }
+
+    const result = await response.json()
+    let hygieneLevel = 0
+    if (
+      result &&
+      result.length > 0 &&
+      result[0].predictions &&
+      result[0].predictions.predictions
+    ) {
+      const detections = result[0].predictions.predictions
+      if (detections.length > 0) {
+        // Use detection count to simulate hygiene level
+        hygieneLevel = Math.min(100, detections.length * 15)
+      }
+    }
+    console.log(
+      `Hygiene detection complete for entry ${entry.id}: Level ${hygieneLevel}`
+    )
+    return hygieneLevel
+  } catch (error) {
+    console.error(`Error detecting hygiene level for entry ${entry.id}:`, error)
+    return 0
+  }
+}
+
+async function detectWaterLoggingLevel(entry) {
+  if (!entry.image_url) {
+    console.log(
+      `Skipping water logging detection for entry ${entry.id}: No image URL`
+    )
+    return 0
+  }
+  try {
+    console.log(
+      `Detecting water logging level for entry ${entry.id} using image: ${entry.image_url}`
+    )
+    const response = await fetch(
+      "https://serverless.roboflow.com/infer/workflows/swayam-iftnk/custom-workflow-2",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          api_key: ROBOFLOW_API_KEY,
+          inputs: {
+            image: { type: "url", value: entry.image_url },
+          },
+        }),
+      }
+    )
+
+    if (!response.ok) {
+      console.error(
+        `Water logging detection API error for entry ${entry.id}: ${response.statusText}`
+      )
+      return 0
+    }
+
+    const result = await response.json()
+    let waterLoggingLevel = 0
+    if (
+      result &&
+      result.length > 0 &&
+      result[0].predictions &&
+      result[0].predictions.predictions
+    ) {
+      const detections = result[0].predictions.predictions
+      if (detections.length > 0) {
+        // Use detection count to simulate water logging level
+        waterLoggingLevel = Math.min(100, detections.length * 20)
+      }
+    }
+    console.log(
+      `Water logging detection complete for entry ${entry.id}: Level ${waterLoggingLevel}`
+    )
+    return waterLoggingLevel
+  } catch (error) {
+    console.error(
+      `Error detecting water logging level for entry ${entry.id}:`,
+      error
+    )
+    return 0
   }
 }
 
